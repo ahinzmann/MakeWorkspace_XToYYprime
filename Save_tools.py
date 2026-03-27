@@ -1,6 +1,7 @@
 import sys,math,ctypes,array
 import ROOT
 import os
+import re
 import matplotlib.pyplot as plt
 from ROOT import gROOT, gPad, gStyle
 from ROOT import TH1F, TH3F, TCanvas
@@ -73,7 +74,7 @@ def Read_Hist_Directory_nosys(file,samplename,systematicname,categoryname,dir_li
 
 def Read_3DHist(dir_list,samplename):
    for i, directory in enumerate(dir_list):
-    print (dir_list)
+    #print (dir_list)
     directory.cd()
     hist_list = []
     for key in directory.GetListOfKeys():
@@ -139,9 +140,9 @@ def Convert_3Dhist_to_1Dhist(sample, category, systematic, mj1_bins, mj2_bins, m
   low_range_Z  = projZ.GetXaxis().GetBinLowEdge(min_bin_Z)
   high_range_Z = projZ.GetXaxis().GetBinUpEdge(max_bin_Z)
  
-  print(f"mj1 bin is from {min_bin_X} to {max_bin_X}, range is from {low_range_X} to {high_range_X} ,bin number is {n_bins_X}")
-  print(f"mj2 bin is from {min_bin_Y} to {max_bin_Y}, range is from {low_range_Y} to {high_range_Y} ,bin number is {n_bins_Y}")
-  print(f"mjj bin is from {min_bin_Z} to {max_bin_Z}, range is from {low_range_Z} to {high_range_Z} ,bin number is {n_bins_Z}")
+  #print(f"mj1 bin is from {min_bin_X} to {max_bin_X}, range is from {low_range_X} to {high_range_X} ,bin number is {n_bins_X}")
+  #print(f"mj2 bin is from {min_bin_Y} to {max_bin_Y}, range is from {low_range_Y} to {high_range_Y} ,bin number is {n_bins_Y}")
+  #print(f"mjj bin is from {min_bin_Z} to {max_bin_Z}, range is from {low_range_Z} to {high_range_Z} ,bin number is {n_bins_Z}")
 
   #nBinsX = projX.GetNbinsX()
   #nBinsY = projY.GetNbinsX()  
@@ -761,10 +762,10 @@ def Add_generator_shower_sys(categories,hist_covert3Dto1D,hist_3D,hist_1D):
        hist_covert3Dto1D["QCD_madgraph_pythia8"][category]["showerUp"].SetBinContent(i_bin,content_showerUp) 
        hist_covert3Dto1D["QCD_madgraph_pythia8"][category]["MEUp"].SetBinContent(i_bin,content_MEUp) 
        hist_covert3Dto1D["QCD_madgraph_pythia8"][category]["MEshowerUp"].SetBinContent(i_bin,content_MEshowerUp) 
-       print(f"sys shower up is {content_showerUp}")
-       print(f"sys ME up is {content_MEUp}")
-       print(f"sys MEshower up is {content_MEshowerUp}")
-       print(" ")
+       #print(f"sys shower up is {content_showerUp}")
+       #print(f"sys ME up is {content_MEUp}")
+       #print(f"sys MEshower up is {content_MEshowerUp}")
+       #print(" ")
   
      ### convert the 1D to 3D
      ###shower model sys
@@ -863,7 +864,7 @@ def Add_mjets_and_mjetsinverse_sys(sample,category,hist3D_names,hist1D_names):
 
               hist3D_names[sample][category]["mjetsinvUp"].SetBinContent(i,j,k,nominal_value*mjets_inverse_sys_weight("fatjet","nominal",value_X)*mjets_inverse_sys_weight("2jets","nominal",value_Y)*mjets_inverse_sys_weight("3jets","up",value_Z))
               hist3D_names[sample][category]["mjetsinvDown"].SetBinContent(i,j,k,nominal_value*mjets_inverse_sys_weight("fatjet","nominal",value_X)*mjets_inverse_sys_weight("2jets","nominal",value_Y)*mjets_inverse_sys_weight("3jets","down",value_Z))
-              print (f"bins {i},{j},{k} content is {nominal_value}")
+              #print (f"bins {i},{j},{k} content is {nominal_value}")
    
 
   ### mjets up and down
@@ -1162,26 +1163,30 @@ def MakeWorkspace_1D(category,samples,systematics,Roodatahist1D_names):
    print ("datacard " + category + " is done !")
    del w
 
-def MakeWorkspace(category,samples,systematics,Roodatahist_names):
+def MakeWorkspace(category,signal_sample,bkg_samples,systematics,Roodatahist_names):
    w = ROOT.RooWorkspace("w")
    dataHist=Roodatahist_names["JetHT"][category]["nominal"] 
 
    getattr(w,'import')(dataHist,ROOT.RooFit.RenameVariable("data_obs","data_obs"))
-   for i, sample in enumerate(samples):  
-     if sample in ["JetHT"]:
+   for i, bkg_sample in enumerate(bkg_samples):  
+     if bkg_sample in ["JetHT"]:
        continue
      for systematic in systematics:
-       print (sample)
-       if Roodatahist_names[sample][category][systematic] != None:
-         getattr(w,'import')(Roodatahist_names[sample][category][systematic])#,ROOT.RooFit.RenameVariable(sample+"_"+category,sample+"_"+category)
+       print (bkg_sample)
+       if Roodatahist_names[bkg_sample][category][systematic] != None:
+         getattr(w,'import')(Roodatahist_names[bkg_sample][category][systematic])#,ROOT.RooFit.RenameVariable(sample+"_"+category,sample+"_"+category)
+   for systematic in systematics:
+     if Roodatahist_names[signal_sample][category][systematic] != None:
+       getattr(w,'import')(Roodatahist_names[signal_sample][category][systematic])#,ROOT.RooFit.RenameVariable(sample+"_"+category,sample+"_"+category)
    w.writeToFile("datacardInput_"+category+".root")
    
    print ("datacard " + category + " is done !")
    del w
 
 
-def WriteDatacard(category,Roodatahist_names):
- with open("datacard_"+category+".txt", "w") as datacard:
+def WriteDatacard(category,signal_sample,Roodatahist_names):
+ mass_point = re.search(r'MX\d+', signal_sample).group()
+ with open("datacard_"+category+"_"+mass_point+".txt", "w") as datacard:
   datacard.write("imax 1 number of bins\n") 
   datacard.write("jmax 6 number of backgrounds\n") 
   datacard.write("kmax * number of nuisance parameters\n") 
@@ -1192,9 +1197,9 @@ def WriteDatacard(category,Roodatahist_names):
   datacard.write("observation -1\n") 
   datacard.write("------------------------------------\n") 
   datacard.write("bin bin1 bin1 bin1 bin1 bin1 bin1 bin1\n") 
-  datacard.write("process %s %s %s %s %s %s %s\n" % (Roodatahist_names["XToYYprime_MX3000"][category]["nominal"].GetName(),Roodatahist_names["QCD_madgraph_pythia8"][category]["nominal"].GetName(),Roodatahist_names["TT"][category]["nominal"].GetName(),Roodatahist_names["ZJets"][category]["nominal"].GetName(),Roodatahist_names["WJets"][category]["nominal"].GetName(),Roodatahist_names["VV"][category]["nominal"].GetName(),Roodatahist_names["ST"][category]["nominal"].GetName()) )
+  datacard.write("process %s %s %s %s %s %s %s\n" % (Roodatahist_names[signal_sample][category]["nominal"].GetName(),Roodatahist_names["QCD_madgraph_pythia8"][category]["nominal"].GetName(),Roodatahist_names["TT"][category]["nominal"].GetName(),Roodatahist_names["ZJets"][category]["nominal"].GetName(),Roodatahist_names["WJets"][category]["nominal"].GetName(),Roodatahist_names["VV"][category]["nominal"].GetName(),Roodatahist_names["ST"][category]["nominal"].GetName()) )
   datacard.write("process 0 1 2 3 4 5 6\n")
-  datacard.write("rate %f %f %f %f %f %f %f\n" % (Roodatahist_names["XToYYprime_MX3000"][category]["nominal"].sumEntries(),Roodatahist_names["QCD_madgraph_pythia8"][category]["nominal"].sumEntries(),Roodatahist_names["TT"][category]["nominal"].sumEntries(),Roodatahist_names["ZJets"][category]["nominal"].sumEntries(),Roodatahist_names["WJets"][category]["nominal"].sumEntries(),Roodatahist_names["VV"][category]["nominal"].sumEntries(),Roodatahist_names["ST"][category]["nominal"].sumEntries())) 
+  datacard.write("rate %f %f %f %f %f %f %f\n" % (Roodatahist_names[signal_sample][category]["nominal"].sumEntries(),Roodatahist_names["QCD_madgraph_pythia8"][category]["nominal"].sumEntries(),Roodatahist_names["TT"][category]["nominal"].sumEntries(),Roodatahist_names["ZJets"][category]["nominal"].sumEntries(),Roodatahist_names["WJets"][category]["nominal"].sumEntries(),Roodatahist_names["VV"][category]["nominal"].sumEntries(),Roodatahist_names["ST"][category]["nominal"].sumEntries())) 
   datacard.write("------------------------------------\n") 
   datacard.write("lumi lnN 1.025 - - - - - -\n") 
   datacard.write("QCD_norm lnN - 1.3 - - - - -\n") 
@@ -1220,7 +1225,7 @@ def WriteDatacard(category,Roodatahist_names):
   #datacard.write("mjets  shape - 1 - - - - -\n") 
   #datacard.write("mjetsinv  shape - 1 - - - - -\n") 
 
-  datacard.write("XToYYprime_MX3000JuncTotal   shape 1 - - - - - -\n") 
+  datacard.write(f"{signal_sample}JuncTotal   shape 1 - - - - - -\n") 
   datacard.write("QCD_madgraph_pythia8JuncTotal  shape - 1 - - - - -\n") 
   datacard.write("TTJuncTotal   shape - - 1 - - - -\n") 
   datacard.write("ZJetsJuncTotal shape - - - 1 - - -\n") 
@@ -1228,6 +1233,6 @@ def WriteDatacard(category,Roodatahist_names):
   datacard.write("VVJuncTotal shape - - - - - 1 -\n") 
   datacard.write("STJuncTotal   shape - - - - - - 1\n") 
 
-  datacard.write("XToYYprime_MX3000PSfsr   shape 1 - - - - - -\n") 
+  datacard.write(f"{signal_sample}PSfsr   shape 1 - - - - - -\n") 
 
 

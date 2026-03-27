@@ -13,13 +13,15 @@ Mj2 = ROOT.RooRealVar("mj2", "m_{j2}", 50., 2514.)
 Mvv = ROOT.RooRealVar("mjj", "m_{jj}", 1500.,5000.)  
 
 mj1_bins = [50, 55, 60, 66, 72, 79, 86, 94, 103, 113, 124, 136, 149, 163, 179, 196, 215, 236, 259, 284, 312, 343, 377, 414, 455, 500, 550]
-mj2_bins = [550, 605, 665, 731, 804, 884, 972, 1069]
+mj2_bins = [50, 55, 60, 66, 72, 79, 86, 94, 103, 113, 124, 136, 149, 163, 179, 196, 215, 236, 259, 284, 312, 343, 377, 414, 455, 500, 550, 605, 665, 731, 804, 884, 972, 1069, 1175, 1292, 1421, 1563, 1719, 1890, 2079, 2286, 2514, 2765, 3041, 3345]
 mjj_bins = [1452, 1597, 1756, 1931, 2124, 2336, 2569, 2825, 3107, 3417, 3758, 4133, 4546, 5000, 5500, 6050, 6655] 
 
 x = ROOT.RooRealVar("x", "x", 0, 20000) 
 
 samples = [
-           "XToYYprime_MX3000",
+           "XToYYprime_MX2000_MY120_MYprime500",
+           "XToYYprime_MX3000_MY200_MYprime800",
+           "XToYYprime_MX4000_MY200_MYprime2000",
            "QCD_madgraph_pythia8",
            "QCD_madgraph_herwig7",
            "QCD_herwig7_Pt",
@@ -43,6 +45,14 @@ bkg_samples = [
                "ZJets",
                "WJets",
               ]
+
+signal_samples = [
+                  "XToYYprime_MX2000_MY120_MYprime500",
+                  "XToYYprime_MX3000_MY200_MYprime800",
+                  "XToYYprime_MX4000_MY200_MYprime2000",
+                 ]
+
+dataset = ["JetHT"]
 samples_color = {
                "VV":ROOT.kRed+2,
                "ST":ROOT.kViolet-1,
@@ -56,8 +66,6 @@ samples_color = {
                "QCD_pythia8_Pt":ROOT.kBlue,
                }
 
-signal_samples = ["XToYYprime_MX3000"]
-dataset = ["JetHT"]
 categories = ["HP","LP","rest"] 
 systematics = ["nominal",
                "showerUp","showerDown",
