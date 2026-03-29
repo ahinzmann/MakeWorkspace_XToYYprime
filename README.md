@@ -23,7 +23,7 @@ cd $CMSSW_BASE/src
 git clone git@github.com:TaozheYu/MakeWorkspace_XToYYprime.git 
 cd MakeWorkspace_XToYYprime
 ```
-#Save the worksapces and datacards
+# Save the worksapces and datacards
 ```bash
 python3 SaveXToYYprime_workspaces.py -y <year> -t <topology> -i <the input file path>
 ```
@@ -34,18 +34,19 @@ python3 SaveXToYYprime_workspaces.py -y <year> -t <topology> -i <the input file 
 
 `-i` means the 3D histogram of input path 
 
-#Use the combine tool to get limit or do fit
+# Use the combine tool to get limit or do fit
+
 ```bash 
 python3 run_combine.py -y <year> -t <topology> -rt <the run model>
 ```
 `-rt` has two choices, `limit` means using asymptotic method to get limit; `fit` means diagnostics fit  
 
-## plot the limit
+## Get the limit plots
 ```bash
 python3 plotter_combineLimit.py -y <year> -t <topology> 
 ```
 
-## get the pre-fit and post-fit plots
+## Get the pre-fit and post-fit plots
 ```bash
 python3 plot_prefit_and_postfit.py -y <year> -t <topology> -ft <fit type>
 ```
