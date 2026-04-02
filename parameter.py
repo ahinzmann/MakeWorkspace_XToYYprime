@@ -5,18 +5,19 @@ import os
 import matplotlib.pyplot as plt
 from ROOT import gROOT, gPad, gStyle
 from array import array
-#from Save_tools import *
 
-Mj1 = ROOT.RooRealVar("mj1", "m_{j1}", 50., 500.)   
-Mj2 = ROOT.RooRealVar("mj2", "m_{j2}", 50., 2514.)   
-#Mvv = ROOT.RooRealVar("mjj", "m_{jj}", 1500,5000)  
-Mvv = ROOT.RooRealVar("mjj", "m_{jj}", 1500.,5000.)  
+Mj1 = ROOT.RooRealVar("mj1", "m_{j1}", 50., 500.)
+Mj2 = ROOT.RooRealVar("mj2", "m_{j2}", 50., 2514.)
+Mvv = ROOT.RooRealVar("mjj", "m_{jj}", 1500.,5000.)
+x_3jets = ROOT.RooRealVar("x_3jets", "x_3jets", 0, 20000) 
+x_2fatjets = ROOT.RooRealVar("x_2fatjets", "x_2fatjets", 0, 20000) 
 
-mj1_bins = [50, 55, 60, 66, 72, 79, 86, 94, 103, 113, 124, 136, 149, 163, 179, 196, 215, 236, 259, 284, 312, 343, 377, 414, 455, 500, 550]
-mj2_bins = [50, 55, 60, 66, 72, 79, 86, 94, 103, 113, 124, 136, 149, 163, 179, 196, 215, 236, 259, 284, 312, 343, 377, 414, 455, 500, 550, 605, 665, 731, 804, 884, 972, 1069, 1175, 1292, 1421, 1563, 1719, 1890, 2079, 2286, 2514, 2765, 3041, 3345]
-mjj_bins = [1452, 1597, 1756, 1931, 2124, 2336, 2569, 2825, 3107, 3417, 3758, 4133, 4546, 5000, 5500, 6050, 6655] 
-
-x = ROOT.RooRealVar("x", "x", 0, 20000) 
+mj1_bins_3jets = [50, 55, 60, 66, 72, 79, 86, 94, 103, 113, 124, 136, 149, 163, 179, 196, 215, 236, 259, 284, 312, 343, 377, 414, 455, 500, 550]
+mj2_bins_3jets = [50, 55, 60, 66, 72, 79, 86, 94, 103, 113, 124, 136, 149, 163, 179, 196, 215, 236, 259, 284, 312, 343, 377, 414, 455, 500, 550, 605, 665, 731, 804, 884, 972, 1069, 1175, 1292, 1421, 1563, 1719, 1890, 2079, 2286, 2514, 2765, 3041, 3345]
+mjj_bins_3jets = [1200, 1320, 1452, 1597, 1756, 1931, 2124, 2336, 2569, 2825, 3107, 3417, 3758, 4133, 4546, 5000, 5500, 6050, 6655]
+mj1_bins_2fatjets = [50, 60, 72, 86, 103, 123, 147, 176, 211, 253, 303, 363, 435, 522]
+mj2_bins_2fatjets = [50, 60, 72, 86, 103, 123, 147, 176, 211, 253, 303, 363, 435, 522, 626, 751, 901, 1081, 1297]
+mjj_bins_2fatjets = [1200, 1320, 1452, 1597, 1756, 1931, 2124, 2336, 2569, 2825, 3107, 3417, 3758, 4133, 4546, 5000, 5500, 6050, 6655]
 
 samples = [
            "XToYYprime_MX2000_MY120_MYprime500",
@@ -47,8 +48,8 @@ bkg_samples = [
               ]
 
 signal_samples = [
-                  "XToYYprime_MX2000_MY120_MYprime500",
-                  "XToYYprime_MX3000_MY200_MYprime800",
+                  #"XToYYprime_MX2000_MY120_MYprime500",
+                  #"XToYYprime_MX3000_MY200_MYprime800",
                   "XToYYprime_MX4000_MY200_MYprime2000",
                  ]
 
@@ -66,15 +67,20 @@ samples_color = {
                "QCD_pythia8_Pt":ROOT.kBlue,
                }
 
-categories = ["HP","LP","rest"] 
+categories = ["3jetsExclHP", "3jetsExclLP", "3jetsExclRest",
+              "2fatjetsHPHP", "2fatjetsHPLP", "2fatjetsHPRest"]
 systematics = ["nominal",
                "showerUp","showerDown",
                "MEUp","MEDown",
                "MEshowerUp","MEshowerDown",
                "JuncTotalUp","JuncTotalDown",
                "JerUp"      ,"JerDown",
-               "mjetsUp"    ,"mjetsDown",
-               "mjetsinvUp" ,"mjetsinvDown",
+               "mfatjetUp"    ,"mfatjetDown",
+               "mfatjetinvUp" ,"mfatjetinvDown",
+               "m2jetsUp"    ,"m2jetsDown",
+               "m2jetsinvUp" ,"m2jetsinvDown",
+               "m3jetsUp"    ,"m3jetsDown",
+               "m3jetsinvUp" ,"m3jetsinvDown",
                "MErenUp"    ,"MErenDown",
                "MEfacUp"    ,"MEfacDown",
                #"PDFalphas_up","PDFalphas_down",
@@ -87,8 +93,12 @@ systematics_names = [
                      "MEshower",
                      "JuncTotal",
                      "Jer",
-                     "mjets",
-                     "mjetsinv",
+                     "mfatjet",
+                     "mfatjetinv",
+                     "m2jets",
+                     "m2jetsinv",
+                     "m3jets",
+                     "m3jetsinv",
                      "MEren",
                      "MEfac",
                      #"PDFalphas",
@@ -96,7 +106,7 @@ systematics_names = [
                      "PSfsr",
                     ] 
 var_list = [Mj1,Mj2,Mvv] 
-varname_list = ["fatjet","2jets","3jets"] 
+varname_list = ["fatjet","2jets","3jets"]
 
 result_dict = {
     sample: {

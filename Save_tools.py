@@ -114,10 +114,49 @@ def Read_1DHist(dir_list,samplename):
         hist_total.Add(hist)
    return hist_total  
 
-def Convert_3Dhist_to_1Dhist(sample, category, systematic, mj1_bins, mj2_bins, mjj_bins, hist3D_names, hist_covert3Dto1D):
+def smooth_th3_steep(h3):
+    """
+    Smoothes a TH3 histogram in log-space to preserve 
+    steeply falling spectral shapes.
+    """
+    import numpy as np
+    from scipy.ndimage import gaussian_filter
+    nx, ny, nz = h3.GetNbinsX(), h3.GetNbinsY(), h3.GetNbinsZ()
+    
+    # 1. Extract data to a NumPy array (shape: nx+2, ny+2, nz+2 includes under/overflow)
+    data = np.zeros((nx + 2, ny + 2, nz + 2))
+    for i in range(nx + 2):
+        for j in range(ny + 2):
+            for k in range(nz + 2):
+                data[i, j, k] = h3.GetBinContent(i, j, k)
 
-  h3 = hist3D_names[sample][category][systematic] 
-  
+    # 2. Log-transform (add small epsilon to avoid log(0))
+    # This ensures we smooth the "slope" rather than the absolute counts
+    #epsilon = 1e-10
+    #log_data = np.log(data + epsilon)
+
+    # 3. Apply Gaussian Filter (sigma controls smoothing strength)
+    # sigma=0.5 to 1.0 is usually enough for minor denoising
+    #smoothed_log = gaussian_filter(log_data, sigma=0.8)
+
+    # 4. Transform back to linear space
+    #smoothed_data = np.exp(smoothed_log)
+
+    smoothed_data = gaussian_filter(data, sigma=0.8)
+
+    # 5. Create new TH3 and fill with smoothed values
+    h_smooth = h3.Clone(h3.GetName() + "_smooth")
+    for i in range(1, nx + 1):
+        for j in range(1, ny + 1):
+            for k in range(1, nz + 1):
+                h_smooth.SetBinContent(i, j, k, smoothed_data[i, j, k])
+    
+    return h_smooth
+
+def Convert_3Dhist_to_1Dhist(sample, category, systematic, mj1_bins, mj2_bins, mjj_bins, hist3D_names, hist_covert3Dto1D):
+  h3 = hist3D_names[sample][category][systematic]
+  #if not "JetHT" in sample: # Smoothen MC
+  #  h3=smooth_th3_steep(h3)
   projX = h3.ProjectionX("projX")
   projY = h3.ProjectionY("projY") 
   projZ = h3.ProjectionZ("projZ")
@@ -145,21 +184,23 @@ def Convert_3Dhist_to_1Dhist(sample, category, systematic, mj1_bins, mj2_bins, m
   #print(f"mjj bin is from {min_bin_Z} to {max_bin_Z}, range is from {low_range_Z} to {high_range_Z} ,bin number is {n_bins_Z}")
 
   #nBinsX = projX.GetNbinsX()
-  #nBinsY = projY.GetNbinsX()  
-  #nBinsZ = projZ.GetNbinsX()
+  #nBinsY = projY.GetNbinsY()  
+  #nBinsZ = projZ.GetNbinsZ()
   
   #totalBins = nBinsX * nBinsY * nBinsZ
   totalBins = n_bins_X * n_bins_Y * n_bins_Z
  
 
-  print("the number of total bin is ", totalBins)
+  #print("the number of total bin is ", n_bins_X , n_bins_Y , n_bins_Z, totalBins)
 
   longHist = TH1F("longHist_"+sample+"_"+category+"_"+systematic, "Combined Projections;Bin Index;Entries", totalBins, 0, totalBins)
  
   for i in range(min_bin_X, max_bin_X + 1):
     for j in range(min_bin_Y, max_bin_Y + 1):
       for k in range(min_bin_Z, max_bin_Z + 1):
-        longHist.SetBinContent(k-min_bin_Z+1 + n_bins_Z*( (j-min_bin_Y+1 -1) + n_bins_Y * (i-min_bin_X+1 -1) ), h3.GetBinContent(i,j,k))
+        index=k-min_bin_Z+1 + n_bins_Z*( (j-min_bin_Y+1 -1) + n_bins_Y * (i-min_bin_X+1 -1) )
+        longHist.SetBinContent(index, h3.GetBinContent(i,j,k))
+        #print(i,j,k,index,h3.GetBinContent(i,j,k))
 
   '''
   
@@ -835,16 +876,65 @@ def Add_generator_shower_sys(categories,hist_covert3Dto1D,hist_3D,hist_1D):
      #print(" ")
      
 
-def Add_mjets_and_mjetsinverse_sys(sample,category,hist3D_names,hist1D_names):
+def functional_sys_weight(dimension,sys_type,mass):
+   weight = 1
+   if dimension == "fatjet":
+     if sys_type == "up":
+       weight = 1+(mass-200)*0.2/500
+     if sys_type == "down":
+       weight = 1-(mass-200)*0.2/500
+     if sys_type == "nominal":
+       weight = 1
+   if dimension == "2jets":
+     if sys_type == "up":
+       weight = 1+(mass-1000)*0.2/3300
+     if sys_type == "down":
+       weight = 1-(mass-1000)*0.2/3300
+     if sys_type == "nominal":
+       weight = 1
+   if dimension == "3jets":
+     if sys_type == "up":
+       weight = 1+(mass-2050)*0.4/5200
+     if sys_type == "down":
+       weight = 1-(mass-2050)*0.4/5200
+     if sys_type == "nominal":
+       weight = 1
+   return weight
+
+def functional_inv_sys_weight(dimension,sys_type,mass):
+   weight = 1
+   if dimension == "fatjet":
+     if sys_type == "up":
+       weight = 1.2-(30/mass)
+     if sys_type == "down":
+       weight = 0.8+(30/mass)
+     if sys_type == "nominal":
+       weight = 1
+   if dimension == "2jets":
+     if sys_type == "up":
+       weight = 1.2-(150*0.2/mass)
+     if sys_type == "down":
+       weight = 0.8+(150*0.2/mass)
+     if sys_type == "nominal":
+       weight = 1
+   if dimension == "3jets":
+     if sys_type == "up":
+       weight = 1.2-(405/mass)
+     if sys_type == "down":
+       weight = 0.8+(405/mass)
+     if sys_type == "nominal":
+       weight = 1
+   return weight
+
+def Add_functional_sys(sample,category,hist3D_names,hist1D_names,varname_list):
   h3 = hist3D_names[sample][category]["nominal"] 
-  hist3D_names[sample][category]["mjetsUp"]   = hist3D_names[sample][category]["nominal"].Clone(sample+"_3D_"+category+"_mjetsUp")
-  hist3D_names[sample][category]["mjetsDown"] = hist3D_names[sample][category]["nominal"].Clone(sample+"_3D_"+category+"_mjetsDown")
-  hist3D_names[sample][category]["mjetsinvUp"]   = hist3D_names[sample][category]["nominal"].Clone(sample+"_3D_"+category+"_mjetsinvUp")
-  hist3D_names[sample][category]["mjetsinvDown"] = hist3D_names[sample][category]["nominal"].Clone(sample+"_3D_"+category+"_mjetsinvDown")
+  for vn in varname_list:
+    for dn in ["Up","Down","invUp","invDown"]:
+      hist3D_names[sample][category]["m"+vn+dn]   = hist3D_names[sample][category]["nominal"].Clone(sample+"_3D_"+category+"_m"+vn+dn)
   
-  projX = h3.ProjectionX(sample+"_mjetssys_projX")
-  projY = h3.ProjectionY(sample+"_mjetssys_projY") 
-  projZ = h3.ProjectionZ(sample+"_mjetssys_projZ")
+  projX = h3.ProjectionX(sample+"_functionalsys_projX")
+  projY = h3.ProjectionY(sample+"_functionalsys_projY") 
+  projZ = h3.ProjectionZ(sample+"_functionalsys_projZ")
 
   nBinsX = projX.GetNbinsX()
   nBinsY = projY.GetNbinsX()  
@@ -854,37 +944,21 @@ def Add_mjets_and_mjetsinverse_sys(sample,category,hist3D_names,hist1D_names):
   for i in range(1, nBinsX + 1):
       for j in range(1, nBinsY + 1):
           for k in range(1, nBinsZ + 1):
-              value_X = projX.GetXaxis().GetBinUpEdge(i)
-              value_Y = projY.GetXaxis().GetBinUpEdge(j)
-              value_Z = projZ.GetXaxis().GetBinUpEdge(k)
+              masses= [ projX.GetXaxis().GetBinUpEdge(i), projY.GetXaxis().GetBinUpEdge(j), projZ.GetXaxis().GetBinUpEdge(k)]
               nominal_value = hist3D_names[sample][category]["nominal"].GetBinContent(i,j,k)
-
-              hist3D_names[sample][category]["mjetsUp"].SetBinContent(i,j,k,nominal_value*mjets_sys_weight("fatjet","nominal",value_X)*mjets_sys_weight("2jets","nominal",value_Y)*mjets_sys_weight("3jets","up",value_Z))
-              hist3D_names[sample][category]["mjetsDown"].SetBinContent(i,j,k,nominal_value*mjets_sys_weight("fatjet","nominal",value_X)*mjets_sys_weight("2jets","nominal",value_Y)*mjets_sys_weight("3jets","down",value_Z))
-
-              hist3D_names[sample][category]["mjetsinvUp"].SetBinContent(i,j,k,nominal_value*mjets_inverse_sys_weight("fatjet","nominal",value_X)*mjets_inverse_sys_weight("2jets","nominal",value_Y)*mjets_inverse_sys_weight("3jets","up",value_Z))
-              hist3D_names[sample][category]["mjetsinvDown"].SetBinContent(i,j,k,nominal_value*mjets_inverse_sys_weight("fatjet","nominal",value_X)*mjets_inverse_sys_weight("2jets","nominal",value_Y)*mjets_inverse_sys_weight("3jets","down",value_Z))
-              #print (f"bins {i},{j},{k} content is {nominal_value}")
+              for vn, mass in zip(varname_list,masses):
+                hist3D_names[sample][category]["m"+vn+"Up"].SetBinContent(i,j,k,nominal_value*functional_sys_weight(vn,"up",mass))
+                hist3D_names[sample][category]["m"+vn+"Down"].SetBinContent(i,j,k,nominal_value*functional_sys_weight(vn,"down",mass))
+                hist3D_names[sample][category]["m"+vn+"invUp"].SetBinContent(i,j,k,nominal_value*functional_inv_sys_weight(vn,"up",mass))
+                hist3D_names[sample][category]["m"+vn+"invDown"].SetBinContent(i,j,k,nominal_value*functional_inv_sys_weight(vn,"down",mass))
    
 
-  ### mjets up and down
-  hist1D_names[sample][category]["mjetsUp"]["fatjet"] = hist3D_names[sample][category]["mjetsUp"].ProjectionX("hist_"+sample+"_"+category+"_mjetsUp_mfatjet")
-  hist1D_names[sample][category]["mjetsUp"]["2jets"]  = hist3D_names[sample][category]["mjetsUp"].ProjectionY("hist_"+sample+"_"+category+"_mjetsUp_m2jets")
-  hist1D_names[sample][category]["mjetsUp"]["3jets"]  = hist3D_names[sample][category]["mjetsUp"].ProjectionZ("hist_"+sample+"_"+category+"_mjetsUp_m3jets")
-
-  hist1D_names[sample][category]["mjetsDown"]["fatjet"] = hist3D_names[sample][category]["mjetsDown"].ProjectionX("hist_"+sample+"_"+category+"_mjetsDown_mfatjet")
-  hist1D_names[sample][category]["mjetsDown"]["2jets"]  = hist3D_names[sample][category]["mjetsDown"].ProjectionY("hist_"+sample+"_"+category+"_mjetsDown_m2jets")
-  hist1D_names[sample][category]["mjetsDown"]["3jets"]  = hist3D_names[sample][category]["mjetsDown"].ProjectionZ("hist_"+sample+"_"+category+"_mjetsDown_m3jets") 
-
-  ### mjet inverse up and down
-  hist1D_names[sample][category]["mjetsinvUp"]["fatjet"] = hist3D_names[sample][category]["mjetsinvUp"].ProjectionX("hist_"+sample+"_"+category+"_mjetsinvUp_mfatjet")
-  hist1D_names[sample][category]["mjetsinvUp"]["2jets"]  = hist3D_names[sample][category]["mjetsinvUp"].ProjectionY("hist_"+sample+"_"+category+"_mjetsinvUp_m2jets")
-  hist1D_names[sample][category]["mjetsinvUp"]["3jets"]  = hist3D_names[sample][category]["mjetsinvUp"].ProjectionZ("hist_"+sample+"_"+category+"_mjetsinvUp_m3jets")
-
-  hist1D_names[sample][category]["mjetsinvDown"]["fatjet"] = hist3D_names[sample][category]["mjetsinvDown"].ProjectionX("hist_"+sample+"_"+category+"_mjetsinvDown_mfatjet")
-  hist1D_names[sample][category]["mjetsinvDown"]["2jets"]  = hist3D_names[sample][category]["mjetsinvDown"].ProjectionY("hist_"+sample+"_"+category+"_mjetsinvDown_m2jets")
-  hist1D_names[sample][category]["mjetsinvDown"]["3jets"]  = hist3D_names[sample][category]["mjetsinvDown"].ProjectionZ("hist_"+sample+"_"+category+"_mjetsinvDown_m3jets") 
-
+  ### functional sys up and down
+  for vn in varname_list:
+   for dn in ["Up","Down","invUp","invDown"]:
+     hist1D_names[sample][category]["m"+vn+dn]["fatjet"] = hist3D_names[sample][category]["m"+vn+dn].ProjectionX("hist_"+sample+"_"+category+"_m"+vn+dn+"_mfatjet")
+     hist1D_names[sample][category]["m"+vn+dn]["2jets"] = hist3D_names[sample][category]["m"+vn+dn].ProjectionY("hist_"+sample+"_"+category+"_m"+vn+dn+"_m2jets")
+     hist1D_names[sample][category]["m"+vn+dn]["3jets"] = hist3D_names[sample][category]["m"+vn+dn].ProjectionZ("hist_"+sample+"_"+category+"_m"+vn+dn+"_m3jets")
 
 def plot_QCD_diff_generator_shower(categories,varname_list,hist1D_names):
    ##When you plot the sys, you should use the full 3D and 1D bins, but when do the combine just a part of bins, the 1D bins should be just thousands.
@@ -1065,57 +1139,6 @@ def plot_sys(store_path,samples,categories,systematics_names,varname_list,hist1D
            canvas_sys.SaveAs(store_path+"/plots_sys/"+sample+"_"+category+"_"+systematic+"_"+var+"_mass.pdf")
    ROOT.gDirectory.GetList().Remove(canvas_sys)             
 
-
-def mjets_sys_weight(dimension,sys_type,mass):
-   weight = 1
-   if dimension == "fatjet":
-     if sys_type == "up":
-       weight = 1+(mass-200)*0.2/500
-     if sys_type == "down":
-       weight = 1-(mass-200)*0.2/500
-     if sys_type == "nominal":
-       weight = 1
-   if dimension == "2jets":
-     if sys_type == "up":
-       weight = 1+(mass-1000)*0.2/3300
-     if sys_type == "down":
-       weight = 1-(mass-1000)*0.2/3300
-     if sys_type == "nominal":
-       weight = 1
-   if dimension == "3jets":
-     if sys_type == "up":
-       weight = 1+(mass-2050)*0.4/5200
-     if sys_type == "down":
-       weight = 1-(mass-2050)*0.4/5200
-     if sys_type == "nominal":
-       weight = 1
-   return weight
-
-def mjets_inverse_sys_weight(dimension,sys_type,mass):
-   weight = 1
-   if dimension == "fatjet":
-     if sys_type == "up":
-       weight = 1.2-(30/mass)
-     if sys_type == "down":
-       weight = 0.8+(30/mass)
-     if sys_type == "nominal":
-       weight = 1
-   if dimension == "2jets":
-     if sys_type == "up":
-       weight = 1.2-(150*0.2/mass)
-     if sys_type == "down":
-       weight = 0.8+(150*0.2/mass)
-     if sys_type == "nominal":
-       weight = 1
-   if dimension == "3jets":
-     if sys_type == "up":
-       weight = 1.2-(405/mass)
-     if sys_type == "down":
-       weight = 0.8+(405/mass)
-     if sys_type == "nominal":
-       weight = 1
-   return weight
-
 def MakePesudoData(signal_hist_list,bkg_hist_list):
    for i, signal_hist in enumerate(signal_hist_list):
      if i==0:
@@ -1183,32 +1206,53 @@ def MakeWorkspace(category,signal_sample,bkg_samples,systematics,Roodatahist_nam
    print ("datacard " + category + " is done !")
    del w
 
+def MakeWorkspaceSimple(category,signal_sample,bkg_samples,systematics,datahist_names):
+   w = ROOT.TFile.Open("datacardInputSimple_"+category+".root","RECREATE")
+   dataHist=datahist_names["JetHT"][category]["nominal"] 
 
-def WriteDatacard(category,signal_sample,Roodatahist_names):
+   w.WriteObject(dataHist,"data_obs")
+   for i, bkg_sample in enumerate(bkg_samples):  
+     if bkg_sample in ["JetHT"]:
+       continue
+     for systematic in systematics:
+       print (bkg_sample)
+       if datahist_names[bkg_sample][category][systematic] != None:
+         w.WriteObject(datahist_names[bkg_sample][category][systematic],datahist_names[bkg_sample][category][systematic].GetName())
+   for systematic in systematics:
+     if datahist_names[signal_sample][category][systematic] != None:
+       w.WriteObject(datahist_names[signal_sample][category][systematic],datahist_names[signal_sample][category][systematic].GetName())
+   w.Close()
+   
+   print ("datacard " + category + " is done !")
+
+
+def WriteDatacard(category,signal_sample,hist_names):
  mass_point = re.search(r'MX\d+', signal_sample).group()
  with open("datacard_"+category+"_"+mass_point+".txt", "w") as datacard:
   datacard.write("imax 1 number of bins\n") 
   datacard.write("jmax 6 number of backgrounds\n") 
   datacard.write("kmax * number of nuisance parameters\n") 
   datacard.write("------------------------------------\n") 
-  datacard.write("shapes * * datacardInput_%s.root w:$PROCESS w:$PROCESS_$SYSTEMATIC\n" % (category)) 
+  #datacard.write("shapes * * datacardInput_%s.root w:$PROCESS w:$PROCESS_$SYSTEMATIC\n" % (category)) 
+  datacard.write("shapes * * datacardInputSimple_%s.root $PROCESS $PROCESS_$SYSTEMATIC\n" % (category)) 
   datacard.write("------------------------------------\n") 
   datacard.write("bin bin1\n") 
   datacard.write("observation -1\n") 
   datacard.write("------------------------------------\n") 
   datacard.write("bin bin1 bin1 bin1 bin1 bin1 bin1 bin1\n") 
-  datacard.write("process %s %s %s %s %s %s %s\n" % (Roodatahist_names[signal_sample][category]["nominal"].GetName(),Roodatahist_names["QCD_madgraph_pythia8"][category]["nominal"].GetName(),Roodatahist_names["TT"][category]["nominal"].GetName(),Roodatahist_names["ZJets"][category]["nominal"].GetName(),Roodatahist_names["WJets"][category]["nominal"].GetName(),Roodatahist_names["VV"][category]["nominal"].GetName(),Roodatahist_names["ST"][category]["nominal"].GetName()) )
+  datacard.write("process %s %s %s %s %s %s %s\n" % (hist_names[signal_sample][category]["nominal"].GetName(),hist_names["QCD_madgraph_pythia8"][category]["nominal"].GetName(),hist_names["TT"][category]["nominal"].GetName(),hist_names["ZJets"][category]["nominal"].GetName(),hist_names["WJets"][category]["nominal"].GetName(),hist_names["VV"][category]["nominal"].GetName(),hist_names["ST"][category]["nominal"].GetName()) )
   datacard.write("process 0 1 2 3 4 5 6\n")
-  datacard.write("rate %f %f %f %f %f %f %f\n" % (Roodatahist_names[signal_sample][category]["nominal"].sumEntries(),Roodatahist_names["QCD_madgraph_pythia8"][category]["nominal"].sumEntries(),Roodatahist_names["TT"][category]["nominal"].sumEntries(),Roodatahist_names["ZJets"][category]["nominal"].sumEntries(),Roodatahist_names["WJets"][category]["nominal"].sumEntries(),Roodatahist_names["VV"][category]["nominal"].sumEntries(),Roodatahist_names["ST"][category]["nominal"].sumEntries())) 
+  datacard.write("rate %f %f %f %f %f %f %f\n" % (hist_names[signal_sample][category]["nominal"].Integral(),hist_names["QCD_madgraph_pythia8"][category]["nominal"].Integral(),hist_names["TT"][category]["nominal"].Integral(),hist_names["ZJets"][category]["nominal"].Integral(),hist_names["WJets"][category]["nominal"].Integral(),hist_names["VV"][category]["nominal"].Integral(),hist_names["ST"][category]["nominal"].Integral())) 
   datacard.write("------------------------------------\n") 
   datacard.write("lumi lnN 1.025 - - - - - -\n") 
   datacard.write("QCD_norm lnN - 1.3 - - - - -\n") 
   datacard.write("ZJetsren_norm lnN - - - 1.01 - - -\n") 
   datacard.write("WJetsren_norm lnN - - - - 1.01 - -\n") 
 
-  datacard.write("isr_norm lnN - 1.01 1.05 1.05 1.05 1.05 1.01\n") 
-  datacard.write("fsr_norm lnN - 1.10 1.10 1.10 1.10 1.10 1.10\n") 
+  #datacard.write("isr_norm lnN - 1.01 1.05 1.05 1.05 1.05 1.01\n") 
+  #datacard.write("fsr_norm lnN - 1.10 1.10 1.10 1.10 1.10 1.10\n") 
 
+  datacard.write("QCD_madgraph_pythia8MEren  shape - 1 - - - - -\n") 
   datacard.write("TTMEren   shape - - 1 - - - -\n") 
   datacard.write("STMEren   shape - - - - - - 1\n") 
 
@@ -1222,17 +1266,21 @@ def WriteDatacard(category,signal_sample,Roodatahist_names):
   datacard.write("ME  shape - 1 - - - - -\n") 
   datacard.write("MEshower  shape - 1 - - - - -\n") 
 
-  #datacard.write("mjets  shape - 1 - - - - -\n") 
-  #datacard.write("mjetsinv  shape - 1 - - - - -\n") 
+  datacard.write("mfatjet  shape - 1 - - - - -\n") 
+  datacard.write("mfatjetinv  shape - 1 - - - - -\n") 
+  datacard.write("m2jets  shape - 1 - - - - -\n") 
+  datacard.write("m2jetsinv  shape - 1 - - - - -\n") 
+  datacard.write("m3jets  shape - 1 - - - - -\n") 
+  datacard.write("m3jetsinv  shape - 1 - - - - -\n") 
 
-  datacard.write(f"{signal_sample}JuncTotal   shape 1 - - - - - -\n") 
-  datacard.write("QCD_madgraph_pythia8JuncTotal  shape - 1 - - - - -\n") 
-  datacard.write("TTJuncTotal   shape - - 1 - - - -\n") 
-  datacard.write("ZJetsJuncTotal shape - - - 1 - - -\n") 
-  datacard.write("WJetsJuncTotal shape - - - - 1 - -\n") 
-  datacard.write("VVJuncTotal shape - - - - - 1 -\n") 
-  datacard.write("STJuncTotal   shape - - - - - - 1\n") 
+  datacard.write(signal_sample+"PSisr   shape 1 - - - - - -\n") 
+  datacard.write("QCD_madgraph_pythia8PSisr   shape - 1 - - - - -\n") 
+  datacard.write("TTPSisr   shape - - 1 - - - -\n") 
+  datacard.write("ZJetsPSisr shape - - - 1 - - -\n") 
+  datacard.write("WJetsPSisr shape - - - - 1 - -\n") 
+  datacard.write("STPSisr   shape - - - - - - 1\n") 
 
-  datacard.write(f"{signal_sample}PSfsr   shape 1 - - - - - -\n") 
+  datacard.write("PSfsr   shape 1 1 1 1 1 1 1\n") 
+  datacard.write("JuncTotal  shape 1 1 1 1 1 1 1\n") 
 
-
+  #datacard.write("bin1 autoMCStats 0\n") 

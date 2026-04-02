@@ -3,14 +3,15 @@ import os
 import re
 from array import array
 import ctypes
-from parameter import mj1_bins, mj2_bins, mjj_bins 
+from parameter import mj1_bins_3jets,mj2_bins_3jets,mjj_bins_3jets,mj1_bins_2fatjets,mj2_bins_2fatjets,mjj_bins_2fatjets
 from parameter import signal_samples 
 from Save_tools import filter_list 
 from argparse import ArgumentParser
+ROOT.gROOT.SetBatch(True)
 
 parser = ArgumentParser()
 parser.add_argument('-y', '--years', dest='years', action='store', type=str, choices=['2016', '2016APV', '2017', '2018'], default='2017')
-parser.add_argument('-t', '--topology', dest='topology', action='store', type=str, choices=['boosted', 'resolved'], default='resolved')
+parser.add_argument('-t', '--topology', dest='topology', action='store', type=str, default='all')
 parser.add_argument('-ft', '--fittype', dest='fittype', action='store', type=str, choices=['prefit', 'postfit'], default='postfit')
 
 args = parser.parse_args()
@@ -21,148 +22,143 @@ fittype = args.fittype
 path_fw = os.environ['CMSSW_BASE']+"/src/MakeWorkspace_XToYYprime/"
 store_path = path_fw +"/"+ year + "_" + topology
 
-####parameter defination
-
-colors = {
-    "QCD_madgraph_pythia8_rest": ROOT.kBlue,
-    "ST_rest": ROOT.kViolet-1,
-    "TT_rest": ROOT.kViolet,
-    "WJets_rest": ROOT.kGreen,
-    "ZJets_rest": ROOT.kPink+6,
-    "VV_rest": ROOT.kRed+2
-}
-
-names = {
-    "QCD_madgraph_pythia8_rest": "QCD",
-    "ST_rest": "Single Top",
-    "TT_rest": "t#bar{t}",
-    "WJets_rest": "W+Jets",
-    "ZJets_rest": "Z+Jets",
-    "VV_rest": "VV"
-}
-
-backgrounds = ["VV_rest", "ST_rest", "TT_rest", "ZJets_rest", "WJets_rest", "QCD_madgraph_pythia8_rest"]
-
-samples = ["data_obs", "VV_rest", "ST_rest", "TT_rest", "ZJets_rest", "WJets_rest", "QCD_madgraph_pythia8_rest","total_background"]
-
-var_list = ["fatjet","2jets","3jets"]
-
-hist_convert3D = {
-  sample: None for sample in samples
-}
-
-hist_convert3D_proj = {
-  sample : {
-    var : None for var in var_list
-  } for sample in samples
-
-}
-
-#give the mj1, mj2 and mjj bins 
-#mj1_bins = [50, 55, 60, 66, 72, 79, 86, 94, 103, 113, 124, 136, 149, 163, 179, 196, 215, 236, 259, 284, 312, 343, 377, 414, 455, 500, 550]
-#mj2_bins = [284, 312, 343, 377, 414, 455, 500, 550, 605, 665, 731, 804, 884, 972, 1069, 1175, 1292, 1421]
-#mjj_bins = [1452, 1597, 1756, 1931, 2124, 2336, 2569, 2825, 3107, 3417, 3758, 4133, 4546, 5000, 5500, 6050, 6655] 
-
-#mj1_bins = [50, 55, 60, 66, 72, 79, 86, 94, 103, 113, 124, 136, 149, 163, 179, 196]
-#mj2_bins = [550, 605, 665, 731, 804, 884, 972, 1069]
-#mjj_bins = [1452, 1597, 1756, 1931, 2124, 2336, 2569, 2825, 3107, 3417, 3758, 4133, 4546, 5000, 5500] 
-
-
 def main():
+
+ for category in ["2fatjetsHPRest","3jetsExclRest"]:
+  if "2fatjets" in category:
+    mj1_bins=mj1_bins_2fatjets
+    mj2_bins=mj2_bins_2fatjets
+    mjj_bins=mjj_bins_2fatjets
+  else:
+    mj1_bins=mj1_bins_3jets
+    mj2_bins=mj2_bins_3jets
+    mjj_bins=mjj_bins_3jets
+
+  colors = {
+    "QCD_madgraph_pythia8_"+category: ROOT.kBlue,
+    "ST_"+category: ROOT.kViolet-1,
+    "TT_"+category: ROOT.kViolet,
+    "WJets_"+category: ROOT.kGreen,
+    "ZJets_"+category: ROOT.kPink+6,
+    "VV_"+category: ROOT.kRed+2
+  }
+  
+  names = {
+      "QCD_madgraph_pythia8_"+category: "QCD",
+      "ST_"+category: "Single Top",
+      "TT_"+category: "t#bar{t}",
+      "WJets_"+category: "W+Jets",
+      "ZJets_"+category: "Z+Jets",
+      "VV_"+category: "VV"
+  }
+  
+  backgrounds = ["VV_"+category, "ST_"+category, "TT_"+category, "ZJets_"+category, "WJets_"+category, "QCD_madgraph_pythia8_"+category]
+  
+  samples = ["data_obs", "VV_"+category, "ST_"+category, "TT_"+category, "ZJets_"+category, "WJets_"+category, "QCD_madgraph_pythia8_"+category, "total_background"]
+  
+  var_list = ["fatjet","2jets","3jets"]
+
+  hist_convert3D = {
+    sample: None for sample in samples
+  }
+  
+  hist_convert3D_proj = {
+    sample : {
+      var : None for var in var_list
+    } for sample in samples
+
+  }
+  
   for signal_sample in signal_samples:
-    signal_path = store_path + "/" + signal_sample
-    os.chdir(signal_path)
-    Yprime_mass =float( re.search(r'MYprime(\d+)', signal_sample).group(1) )
-    print (Yprime_mass)
-    Yprime_mass_up   = Yprime_mass*(1+0.3)
-    Yprime_mass_down = Yprime_mass*(1-0.3)
-    mj2_bins_reduce = filter_list(mj2_bins,Yprime_mass_down,Yprime_mass_up) 
-    print (mj2_bins_reduce)
+      signal_path = store_path + "/" + signal_sample
+      os.chdir(signal_path)
+      Yprime_mass =float( re.search(r'MYprime(\d+)', signal_sample).group(1) )
+      print (Yprime_mass)
+      Yprime_mass_up   = Yprime_mass*(1+0.3)
+      Yprime_mass_down = Yprime_mass*(1-0.3)
+      mj2_bins_reduce = filter_list(mj2_bins,Yprime_mass_down,Yprime_mass_up) 
+      if len(mj2_bins_reduce)==0:
+        mj2_bins_reduce=mj2_bins[:7]
+      print (mj1_bins)
+      print (mj2_bins_reduce)
+      print (mjj_bins)
+  
+      print(signal_path+"/fitDiagnostics_CR_"+category+".root")
+      f = ROOT.TFile(signal_path+"/fitDiagnostics_CR_"+category+".root")
+  
+      if fittype == "postfit": 
+        dir_bin1 = f.Get("shapes_fit_b/c"+category)
+      if fittype == "prefit": 
+        dir_bin1 = f.Get("shapes_prefit/c"+category)
 
-    f = ROOT.TFile(signal_path+"/fitDiagnosticspostfit.root")
-
-    if fittype == "postfit": 
-       dir_bin1 = f.Get("shapes_fit_b/bin1")
-    if fittype == "prefit": 
-       dir_bin1 = f.Get("shapes_prefit/bin1")
-
-    n_bins_X = len(mj1_bins)-1
-    n_bins_Y = len(mj2_bins_reduce)-1
-    n_bins_Z = len(mjj_bins)-1
-
-    data_graph = dir_bin1.Get("data")
-
-    x_ctypes = ctypes.c_double()
-    y_ctypes = ctypes.c_double()
-
-    total_bkg = dir_bin1.Get("total_background")
-    data_hist_1D = total_bkg.Clone("data_hist_clone_"+signal_sample)
-    data_hist_1D.Reset()
-
-    print("total 3D bins is ", (n_bins_X*n_bins_Y*n_bins_Z))
-    print("number of data bins is ",data_hist_1D.GetNbinsX())
-    
-
-    n_points = data_graph.GetN()
-    for i in range(n_points):
-        data_graph.GetPoint(i, x_ctypes, y_ctypes)
-        bin_num = data_hist_1D.FindBin(x_ctypes.value)
-        if bin_num <= data_hist_1D.GetNbinsX() and bin_num >= 1:
-            data_hist_1D.SetBinContent(bin_num, y_ctypes.value)
-            data_hist_1D.SetBinError(bin_num, data_graph.GetErrorY(i))
-    
-    Convert1D_to_3D(mj1_bins,mj2_bins_reduce,mjj_bins, hist_convert3D, data_hist_1D, "data_obs")
+      n_bins_X = len(mj1_bins)-1
+      n_bins_Y = len(mj2_bins_reduce)-1
+      n_bins_Z = len(mjj_bins)-1
    
-    print(hist_convert3D)
-    hist_convert3D_proj["data_obs"]["fatjet"] = hist_convert3D["data_obs"].ProjectionX("data_obs_projX")
-    hist_convert3D_proj["data_obs"]["2jets"] = hist_convert3D["data_obs"].ProjectionY("data_obs_projY")
-    hist_convert3D_proj["data_obs"]["3jets"] = hist_convert3D["data_obs"].ProjectionZ("data_obs_projZ")
-    
-    #stack = ROOT.THStack("stack", "")
-    
-    hists_mj1 = []
-    hists_mj2 = []
-    hists_mjj = []
-    
-    for bg in backgrounds:
-        hist = dir_bin1.Get(bg)
-        Convert1D_to_3D(mj1_bins,mj2_bins_reduce,mjj_bins, hist_convert3D, hist, bg)
-        
-        hist_convert3D[bg].SetLineColor(ROOT.kBlack)
-        hist_convert3D[bg].SetFillColor(colors[bg])
-        hist_convert3D[bg].SetLineWidth(1)
-        hist_convert3D_proj[bg]["fatjet"] = hist_convert3D[bg].ProjectionX(bg+"_projX")
-        hist_convert3D_proj[bg]["2jets"] = hist_convert3D[bg].ProjectionY(bg+"_projY")
-        hist_convert3D_proj[bg]["3jets"] = hist_convert3D[bg].ProjectionZ(bg+"_projZ")
-        #stack.Add(hist)
-        #hists_mj1.append(hist_convert3D_proj[bg]["mj1"])
-        #hists_mj2.append(hist_convert3D_proj[bg]["mj2"])
-        #hists_mjj.append(hist_convert3D_proj[bg]["mjj"])
-    
-    total_background = dir_bin1.Get("total_background")
-    Convert1D_to_3D(mj1_bins,mj2_bins_reduce,mjj_bins, hist_convert3D,total_background,"total_background")
+      data_graph = dir_bin1.Get("data")
    
-    hist_convert3D_proj["total_background"]["fatjet"] = hist_convert3D["total_background"].ProjectionX("total_background_projX")
-    hist_convert3D_proj["total_background"]["2jets"] = hist_convert3D["total_background"].ProjectionY("total_background_projY")
-    hist_convert3D_proj["total_background"]["3jets"] = hist_convert3D["total_background"].ProjectionZ("total_background_projZ")
+      x_ctypes = ctypes.c_double()
+      y_ctypes = ctypes.c_double()
+
+      total_bkg = dir_bin1.Get("total_background")
+      data_hist_1D = total_bkg.Clone("data_hist_clone_"+signal_sample)
+      data_hist_1D.Reset()
    
-    print(hist_convert3D)
-    #total_signal = dir_bin1.Get("total_signal")
-    plot_data_vs_MC(fittype,year,hist_convert3D_proj,backgrounds,names,colors,"fatjet")
-    plot_data_vs_MC(fittype,year,hist_convert3D_proj,backgrounds,names,colors,"2jets")
-    plot_data_vs_MC(fittype,year,hist_convert3D_proj,backgrounds,names,colors,"3jets")
-   
-    '''
-    c1 = ROOT.TCanvas("c1", "Combined Projections", 1200, 600)
-    c1.SetLogy()
-    for i, bkg in enumerate(backgrounds):
-      print(bkg)
-      hist_convert3D_proj[bkg]["mjj"].Draw()
-      #c1.Draw()
-      c1.SaveAs("convert_1Dto3D_proj/"+bkg+".pdf")
-    '''
+      print("total 3D bins is ", (n_bins_X*n_bins_Y*n_bins_Z))
+      print("number of data bins is ",data_hist_1D.GetNbinsX())
+      
+
+      n_points = data_graph.GetN()
+      for i in range(n_points):
+          data_graph.GetPoint(i, x_ctypes, y_ctypes)
+          bin_num = data_hist_1D.FindBin(x_ctypes.value)
+          if bin_num <= data_hist_1D.GetNbinsX() and bin_num >= 1:
+              data_hist_1D.SetBinContent(bin_num, y_ctypes.value)
+              data_hist_1D.SetBinError(bin_num, data_graph.GetErrorY(i))
+      
+      Convert1D_to_3D(mj1_bins,mj2_bins_reduce,mjj_bins, hist_convert3D, data_hist_1D, "data_obs")
+     
+      print(hist_convert3D)
+      hist_convert3D_proj["data_obs"]["fatjet"] = hist_convert3D["data_obs"].ProjectionX("data_obs_projX")
+      hist_convert3D_proj["data_obs"]["2jets"] = hist_convert3D["data_obs"].ProjectionY("data_obs_projY")
+      hist_convert3D_proj["data_obs"]["3jets"] = hist_convert3D["data_obs"].ProjectionZ("data_obs_projZ")
+      
+      #stack = ROOT.THStack("stack", "")
     
-def plot_data_vs_MC(fittype,year,hist_convert3D_proj,backgrounds,names,colors,var):
+      hists_mj1 = []
+      hists_mj2 = []
+      hists_mjj = []
+      
+      for bg in backgrounds:
+          hist = dir_bin1.Get(bg)
+          Convert1D_to_3D(mj1_bins,mj2_bins_reduce,mjj_bins, hist_convert3D, hist, bg)
+          
+          hist_convert3D[bg].SetLineColor(ROOT.kBlack)
+          hist_convert3D[bg].SetFillColor(colors[bg])
+          hist_convert3D[bg].SetLineWidth(1)
+          hist_convert3D_proj[bg]["fatjet"] = hist_convert3D[bg].ProjectionX(bg+"_projX")
+          hist_convert3D_proj[bg]["2jets"] = hist_convert3D[bg].ProjectionY(bg+"_projY")
+          hist_convert3D_proj[bg]["3jets"] = hist_convert3D[bg].ProjectionZ(bg+"_projZ")
+          #stack.Add(hist)
+          #hists_mj1.append(hist_convert3D_proj[bg]["mj1"])
+          #hists_mj2.append(hist_convert3D_proj[bg]["mj2"])
+          #hists_mjj.append(hist_convert3D_proj[bg]["mjj"])
+      
+      total_background = dir_bin1.Get("total_background")
+      Convert1D_to_3D(mj1_bins,mj2_bins_reduce,mjj_bins, hist_convert3D,total_background,"total_background")
+     
+      hist_convert3D_proj["total_background"]["fatjet"] = hist_convert3D["total_background"].ProjectionX("total_background_projX")
+      hist_convert3D_proj["total_background"]["2jets"] = hist_convert3D["total_background"].ProjectionY("total_background_projY")
+      hist_convert3D_proj["total_background"]["3jets"] = hist_convert3D["total_background"].ProjectionZ("total_background_projZ")
+     
+      print(hist_convert3D)
+      #total_signal = dir_bin1.Get("total_signal")
+      plot_data_vs_MC(fittype,year,hist_convert3D_proj,backgrounds,names,colors,"fatjet",category)
+      plot_data_vs_MC(fittype,year,hist_convert3D_proj,backgrounds,names,colors,"2jets",category)
+      plot_data_vs_MC(fittype,year,hist_convert3D_proj,backgrounds,names,colors,"3jets",category)
+
+    
+def plot_data_vs_MC(fittype,year,hist_convert3D_proj,backgrounds,names,colors,var,category):
  stack = ROOT.THStack("stack", "")
  for i, bkg in enumerate(backgrounds):
      print (bkg)
@@ -238,7 +234,7 @@ def plot_data_vs_MC(fittype,year,hist_convert3D_proj,backgrounds,names,colors,va
                [total_background.GetBinContent(i) for i in range(1, total_background.GetNbinsX()+1) if total_background.GetBinContent(i) > 0])
  stack.SetMaximum(max_val * 100)
  #stack.SetMinimum(max(0.1, min_val * 0.1))
- stack.SetMinimum(10)
+ stack.SetMinimum(0.5)
  
  total_background.SetFillStyle(3005)
  total_background.SetFillColor(12)  
@@ -360,7 +356,7 @@ def plot_data_vs_MC(fittype,year,hist_convert3D_proj,backgrounds,names,colors,va
  canvas.Update()
  canvas.Draw()
  
- canvas.SaveAs(f"{fittype}_"+var+".pdf")
+ canvas.SaveAs(f"{fittype}_"+var+"_"+category+".pdf")
 
  del pad
  del pad1 
@@ -373,6 +369,8 @@ def plot_data_vs_MC(fittype,year,hist_convert3D_proj,backgrounds,names,colors,va
 def Convert1D_to_3D(X_bins,
                     Y_bins,
                     Z_bins,hist_1Dconvert3D,hist_1D,sample_name):
+
+    print("bins", len(X_bins)-1 , len(Y_bins)-1 , len(Z_bins)-1, hist_1D.GetNbinsX())
 
     hist_1Dconvert3D[sample_name] = ROOT.TH3F("h3_restored_"+sample_name, "h3_restored_"+sample_name,
                         len(X_bins)-1, array('d', X_bins),
@@ -387,6 +385,7 @@ def Convert1D_to_3D(X_bins,
                 # 计算对应的一维索引（与原始转换公式相同）
                 index_1d = k + (len(Z_bins)-1) * ((j-1) + (len(Y_bins)-1) * (i-1))
                 content = hist_1D.GetBinContent(index_1d)
+                #print(i,j,k,index_1d,hist_1D.GetBinContent(index_1d))
                 error = hist_1D.GetBinError(index_1d)
                 #if sample_name == "total_background":
                    #print (f"totalbackground hist {index_1d} bin's content is {content}" )

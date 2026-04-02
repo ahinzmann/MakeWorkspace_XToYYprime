@@ -12,7 +12,7 @@ from argparse import ArgumentParser
 
 parser = ArgumentParser()
 parser.add_argument('-y', '--years', dest='years', action='store', type=str, choices=['2016', '2016APV', '2017', '2018'], default='2017')
-parser.add_argument('-t', '--topology', dest='topology', action='store', type=str, choices=['boosted', 'resolved'], default='resolved')
+parser.add_argument('-t', '--topology', dest='topology', action='store', type=str, default='all')
 
 
 args = parser.parse_args()
